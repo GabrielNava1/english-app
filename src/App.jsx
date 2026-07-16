@@ -1,10 +1,25 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import Navbar from './Navbar'
+import Vocabulario from './pages/Vocabulario'
+import Gramatica from './pages/Gramatica'
+import Conversacion from './pages/Conversacion'
+import Pronunciacion from './pages/Pronunciacion'
+import Progreso from './pages/Progreso'
+
 function App() {
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <h1 className="text-4xl font-black text-cyan-400">
-        English App 🚀
-      </h1>
-    </div>
+    <BrowserRouter>
+      <div className="min-h-screen bg-gray-950">
+        <Navbar />
+        <Routes>
+          <Route path="/" element={<Vocabulario />} />
+          <Route path="/gramatica" element={<Gramatica />} />
+          <Route path="/conversacion" element={<Conversacion />} />
+          <Route path="/pronunciacion" element={<Pronunciacion />} />
+          <Route path="/progreso" element={<Progreso />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
   )
 }
 
