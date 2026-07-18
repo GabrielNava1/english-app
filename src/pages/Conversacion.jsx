@@ -11,6 +11,7 @@ function Conversacion() {
   const [escuchando, setEscuchando] = useState(false)
   const finalRef = useRef(null)
   const reconocimientoRef = useRef(null)
+  const audioRef = useRef(new Audio())
 
   const modoRef = useRef(modo)
   useEffect(() => {
@@ -51,14 +52,16 @@ function Conversacion() {
       })
       if (!respuesta.ok) return
       const audioBlob = await respuesta.blob()
-      const audio = new Audio(URL.createObjectURL(audioBlob))
-      audio.play()
+      audioRef.current.src = URL.createObjectURL(audioBlob)
+      audioRef.current.play().catch((e) => console.error('No se pudo reproducir:', e))
     } catch (error) {
       console.error('Error generando voz:', error)
     }
   }
 
   async function enviarMensaje(textoManual) {
+    audioRef.current.play().catch(() => {}) // desbloquea audio en iPhone, con el toque real del usuario
+    audioRef.current.pause()
     const texto = (textoManual ?? entrada).trim()
     if (!texto || cargando) return
 
@@ -97,6 +100,8 @@ function Conversacion() {
   }
 
   function alternarMicrofono() {
+    audioRef.current.play().catch(() => {})
+    audioRef.current.pause()
     if (!reconocimientoRef.current) {
       alert('Tu navegador no soporta reconocimiento de voz. Prueba con Chrome o Edge.')
       return
