@@ -212,5 +212,100 @@ def guardar_error_y_reforzar(datos_ia):
     except Exception as e:
         print(f"Error guardando error detectado: {e}")
 
+@app.route("/generar-repaso", methods=["POST"])
+def generar_repaso():
+    datos = request.get_json()
+    tema = datos.get("tema", "")  # 'gramatica' o 'pronunciacion'
+
+    if tema not in ("gramatica", "pronunciacion"):
+        return {"error": "Tema invalido"}, 400
+
+    # buscamos hasta 5 errores de este tema que no se hayan usado todavia
+    errores = (
+        cliente_supabase.table("errores_detectados")
+        .select("*")
+        .eq("tema", tema)
+        .eq("usado", False)
+        .order("veces_detectado", desc=True)
+        .limit(5)
+        .execute()
+    )
+
+    if not errores.data:
+        return {"mensaje": "No hay errores nuevos pendientes de repasar", "generadas": 0}
+
+    generadas = 0
+
+    for error in errores.data:
+        pregunta_generada = generar_pregunta_desde_error(error, tema)
+
+        if pregunta_generada:
+            if tema == "gramatica":
+                cliente_supabase.table("gramatica").insert(pregunta_generada).execute()
+            else:
+                cliente_supabase.table("pronunciacion").insert(pregunta_generada).execute()
+
+            cliente_supabase.table("errores_detectados").update(
+                {"usado": True}
+            ).eq("id", error["id"]).execute()
+
+            generadas += 1
+
+    return {"mensaje": "Preguntas generadas con exito", "generadas": generadas}
+
+
+def generar_pregunta_desde_error(error, tema):
+    if tema == "gramatica":
+        instrucciones = f"""
+Un estudiante de ingles cometio este error real:
+Escribio: "{error['texto_incorrecto']}"
+Lo correcto era: "{error['texto_correcto']}"
+Explicacion: {error['explicacion']}
+
+Crea UNA pregunta de opcion multiple en ingles para practicar exactamente esta
+regla gramatical, distinta a la oracion original pero sobre el mismo error.
+
+Responde UNICAMENTE con un JSON valido, sin texto adicional, con esta estructura:
+{{
+  "pregunta": "una oracion en ingles con un espacio en blanco ___",
+  "opcion_a": "...",
+  "opcion_b": "...",
+  "opcion_c": "...",
+  "respuesta_correcta": "la opcion correcta, debe ser identica a una de las 3 opciones",
+  "explicacion": "explicacion breve en español"
+}}
+"""
+    else:  # pronunciacion
+        instrucciones = f"""
+Un estudiante de ingles confundio esta palabra: "{error['palabra_clave']}"
+Contexto del error: escribio "{error['texto_incorrecto']}" en vez de "{error['texto_correcto']}"
+
+Crea una entrada de practica de pronunciacion para esa palabra en ingles.
+
+Responde UNICAMENTE con un JSON valido, sin texto adicional, con esta estructura:
+{{
+  "palabra_es": "la palabra en español",
+  "palabra_en": "la palabra en ingles, debe ser '{error['palabra_clave']}'",
+  "pronunciacion": "como suena la palabra en letras faciles de leer en español, ej 'pipol'"
+}}
+"""
+
+    try:
+        respuesta = cliente_gemini.models.generate_content(
+            model="gemini-flash-latest",
+            contents=instrucciones,
+        )
+        texto_crudo = respuesta.text.strip()
+        if texto_crudo.startswith("```"):
+            texto_crudo = texto_crudo.split("```")[1]
+            if texto_crudo.startswith("json"):
+                texto_crudo = texto_crudo[4:]
+            texto_crudo = texto_crudo.strip()
+
+        return json.loads(texto_crudo)
+    except Exception as e:
+        print(f"Error generando pregunta: {e}")
+        return None        
+
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
