@@ -23,12 +23,18 @@ if not os.path.exists(CARPETA_AUDIOS):
     os.makedirs(CARPETA_AUDIOS)
 
 
-async def generar_audio(texto, ruta_salida):
-    """Genera un archivo de audio a partir de un texto en inglés."""
-    voz = "en-US-AriaNeural"  # voz en inglés, suena natural
+async def generar_audio(texto, ruta_salida, voz="en-US-AriaNeural"):
+    """Genera un archivo de audio a partir de un texto, en la voz indicada."""
     comunicador = edge_tts.Communicate(texto, voz)
     await comunicador.save(ruta_salida)
 
+
+def limpiar_texto_para_voz(texto):
+    """Quita simbolos de Markdown que suenan raro al leerse en voz alta."""
+    texto = texto.replace('**', '')
+    texto = texto.replace('"', '')
+    texto = texto.replace("'", '')
+    return texto.strip()
 
 @app.route("/pronunciar", methods=["POST"])
 def pronunciar():
@@ -48,7 +54,57 @@ def pronunciar():
 
     return send_file(ruta, mimetype="audio/mpeg")
 
+import uuid
 
+@app.route("/hablar", methods=["POST"])
+def hablar():
+    datos = request.get_json()
+    texto = datos.get("texto", "")
+
+    if not texto:
+        return {"error": "Falta el texto"}, 400
+
+    # separamos la respuesta en inglés de la corrección en español, si existe
+    if "Corrección:" in texto:
+        parte_ingles, parte_espanol = texto.split("Corrección:", 1)
+        parte_espanol = "Corrección: " + parte_espanol
+    else:
+        parte_ingles = texto
+        parte_espanol = ""
+
+    parte_ingles = limpiar_texto_para_voz(parte_ingles)
+    parte_espanol = limpiar_texto_para_voz(parte_espanol)
+
+    id_unico = uuid.uuid4().hex
+    ruta_ingles = os.path.join(CARPETA_AUDIOS, f"temp_{id_unico}_en.mp3")
+    ruta_espanol = os.path.join(CARPETA_AUDIOS, f"temp_{id_unico}_es.mp3")
+    ruta_final = os.path.join(CARPETA_AUDIOS, f"temp_{id_unico}_final.mp3")
+
+    partes_generadas = []
+
+    if parte_ingles:
+        asyncio.run(generar_audio(parte_ingles, ruta_ingles, voz="en-US-AriaNeural"))
+        partes_generadas.append(ruta_ingles)
+
+    if parte_espanol:
+        asyncio.run(generar_audio(parte_espanol, ruta_espanol, voz="es-MX-DaliaNeural"))
+        partes_generadas.append(ruta_espanol)
+
+    # unimos los audios generados en un solo archivo final
+    with open(ruta_final, "wb") as archivo_final:
+        for parte in partes_generadas:
+            with open(parte, "rb") as f:
+                archivo_final.write(f.read())
+
+    respuesta = send_file(ruta_final, mimetype="audio/mpeg")
+
+    @respuesta.call_on_close
+    def limpiar():
+        for ruta in partes_generadas + [ruta_final]:
+            if os.path.exists(ruta):
+                os.remove(ruta)
+
+    return respuesta
 @app.route("/conversar", methods=["POST"])
 def conversar():
     datos = request.get_json()
