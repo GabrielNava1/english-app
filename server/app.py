@@ -9,6 +9,8 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from google import genai
+from supabase import create_client
+import json
 
 load_dotenv()  # carga las variables del archivo .env
 
@@ -16,6 +18,10 @@ app = Flask(__name__)
 CORS(app)  # permite que React (otro puerto) le hable a este servidor
 
 cliente_gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+cliente_supabase = create_client(
+    os.getenv("SUPABASE_URL"),
+    os.getenv("SUPABASE_KEY")
+)
 
 # Carpeta donde vamos a guardar los audios generados
 CARPETA_AUDIOS = "audios"
@@ -113,22 +119,98 @@ def conversar():
     if not mensaje_usuario:
         return {"error": "Falta el mensaje"}, 400
 
-    instrucciones = (
-        "Eres un profesor de inglés paciente y amigable. "
-        "El usuario está practicando inglés y puede escribir en español o inglés. "
-        "Responde SIEMPRE en inglés simple (nivel principiante-intermedio), "
-        "y si el usuario cometió un error gramatical, corrígelo amablemente "
-        "al final de tu respuesta, en español, con el formato: "
-        "'Corrección: ...'. Si no hay errores, no agregues nada de corrección."
-    )
+    instrucciones = """
+Eres un profesor de inglés paciente y amigable. El usuario está practicando
+inglés y puede escribir en español o inglés. Responde SIEMPRE en inglés
+simple (nivel principiante-intermedio).
+
+Debes responder ÚNICAMENTE con un JSON válido, sin texto adicional, sin
+marcado de código, con esta estructura exacta:
+
+{
+  "respuesta": "tu respuesta conversacional en inglés",
+  "tiene_error": true o false,
+  "tema_error": "gramatica" o "vocabulario" o "pronunciacion" o null,
+  "texto_incorrecto": "lo que el usuario escribió mal, o null",
+  "texto_correcto": "la version correcta, o null",
+  "explicacion": "explicacion breve en español del error, o null",
+  "palabra_clave": "la palabra o regla clave del error en ingles, ej 'went', o null"
+}
+
+Si no hay ningún error, deja tiene_error en false y los demás campos en null.
+"""
 
     respuesta = cliente_gemini.models.generate_content(
         model="gemini-flash-latest",
         contents=f"{instrucciones}\n\nMensaje del usuario: {mensaje_usuario}",
     )
 
-    return {"respuesta": respuesta.text}
+    texto_crudo = respuesta.text.strip()
+    # a veces Gemini envuelve el JSON en ```json ... ``` — lo limpiamos
+    if texto_crudo.startswith("```"):
+        texto_crudo = texto_crudo.split("```")[1]
+        if texto_crudo.startswith("json"):
+            texto_crudo = texto_crudo[4:]
+        texto_crudo = texto_crudo.strip()
 
+    try:
+        datos_ia = json.loads(texto_crudo)
+    except json.JSONDecodeError:
+        return {"respuesta": respuesta.text, "tiene_error": False}
+
+    # si detectamos un error, lo guardamos y reforzamos vocabulario
+    if datos_ia.get("tiene_error"):
+        guardar_error_y_reforzar(datos_ia)
+
+    return {"respuesta": datos_ia.get("respuesta", "")}
+
+
+def guardar_error_y_reforzar(datos_ia):
+    tema = datos_ia.get("tema_error")
+    palabra_clave = datos_ia.get("palabra_clave")
+
+    try:
+        # 1. Registrar el error (o incrementar contador si ya existe uno igual)
+        existente = (
+            cliente_supabase.table("errores_detectados")
+            .select("id, veces_detectado")
+            .eq("palabra_clave", palabra_clave)
+            .execute()
+        )
+
+        if existente.data:
+            id_existente = existente.data[0]["id"]
+            veces = existente.data[0]["veces_detectado"] + 1
+            cliente_supabase.table("errores_detectados").update(
+                {"veces_detectado": veces}
+            ).eq("id", id_existente).execute()
+        else:
+            cliente_supabase.table("errores_detectados").insert(
+                {
+                    "tema": tema,
+                    "texto_incorrecto": datos_ia.get("texto_incorrecto"),
+                    "texto_correcto": datos_ia.get("texto_correcto"),
+                    "explicacion": datos_ia.get("explicacion"),
+                    "palabra_clave": palabra_clave,
+                }
+            ).execute()
+
+        # 2. Si es de vocabulario, reforzar en la tabla vocabulario (acercar su repaso)
+        if tema == "vocabulario" and palabra_clave:
+            palabra_existente = (
+                cliente_supabase.table("vocabulario")
+                .select("id")
+                .ilike("palabra_en", palabra_clave)
+                .execute()
+            )
+            if palabra_existente.data:
+                id_palabra = palabra_existente.data[0]["id"]
+                cliente_supabase.table("vocabulario").update(
+                    {"proximo_repaso": "2000-01-01", "intervalo_dias": 1}
+                ).eq("id", id_palabra).execute()
+
+    except Exception as e:
+        print(f"Error guardando error detectado: {e}")
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
