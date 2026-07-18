@@ -395,6 +395,37 @@ Responde UNICAMENTE con un JSON valido, sin texto adicional, con esta estructura
         print(f"Error generando lectura: {e}")
         return {"error": str(e)}, 500
 
+@app.route("/traducir-palabra", methods=["POST"])
+def traducir_palabra():
+    datos = request.get_json()
+    palabra = datos.get("palabra", "")
+
+    if not palabra:
+        return {"error": "Falta la palabra"}, 400
+
+    instrucciones = f"""
+Traduce esta palabra en inglés al español: "{palabra}"
+Considera el contexto más común de la palabra.
+
+Responde UNICAMENTE con un JSON valido, sin texto adicional, con esta estructura:
+{{
+  "palabra_en": "la palabra en ingles tal cual, en minusculas",
+  "palabra_es": "la traduccion al español",
+  "pronunciacion": "como suena en letras faciles de leer en español, ej 'pipol'"
+}}
+"""
+
+    try:
+        respuesta = llamar_gemini(instrucciones)
+        texto_crudo = respuesta.text.strip()
+        coincidencia = re.search(r'\{.*\}', texto_crudo, re.DOTALL)
+        if coincidencia:
+            texto_crudo = coincidencia.group(0)
+
+        return json.loads(texto_crudo)
+    except Exception as e:
+        print(f"Error traduciendo palabra: {e}")
+        return {"error": str(e)}, 500
 
 @app.route("/uso-api", methods=["GET"])
 def uso_api():
