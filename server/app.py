@@ -409,6 +409,9 @@ def uso_api():
         "porcentaje": round((llamadas_hoy / LIMITE_DIARIO_ESTIMADO) * 100),
     }
 
+@app.route("/")
+def inicio():
+    return {"mensaje": "Servidor de pronunciación funcionando 🎧"}
 
 if __name__ == "__main__":
     puerto = int(os.environ.get("PORT", 5000))

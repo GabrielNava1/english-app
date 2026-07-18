@@ -1,0 +1,1 @@
+export const URL_SERVIDOR = import.meta.env.VITE_URL_SERVIDOR || 'http://127.0.0.1:5000'

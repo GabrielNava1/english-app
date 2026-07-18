@@ -86,7 +86,7 @@ function Vocabulario() {
 
   async function escuchar(palabraIngles) {
     try {
-      const respuesta = await fetch('http://127.0.0.1:5000/pronunciar', {
+      const respuesta = await fetch('`${URL_SERVIDOR}/pronunciar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ palabra: palabraIngles }),

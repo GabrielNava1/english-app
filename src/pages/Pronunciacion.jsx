@@ -81,7 +81,7 @@ function Pronunciacion() {
     setGenerandoRepaso(true)
     setMensajeRepaso('')
     try {
-      const respuesta = await fetch('http://127.0.0.1:5000/generar-repaso', {
+      const respuesta = await fetch('`${URL_SERVIDOR}/generar-repaso', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tema: 'pronunciacion' }),
@@ -113,7 +113,7 @@ function Pronunciacion() {
   async function escucharActual() {
     const p = cola[indice]
     try {
-      const respuesta = await fetch('http://127.0.0.1:5000/pronunciar', {
+      const respuesta = await fetch('`${URL_SERVIDOR}/pronunciar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ palabra: p.palabra_en }),

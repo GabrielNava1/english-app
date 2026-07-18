@@ -23,7 +23,7 @@ function Lectura() {
       const perfil = await supabase.from('perfil_usuario').select('nivel_actual').eq('id', 1).single()
       const nivel = perfil.data?.nivel_actual || 'A1'
 
-      const respuesta = await fetch('http://127.0.0.1:5000/generar-lectura', {
+      const respuesta = await fetch('`${URL_SERVIDOR}/generar-lectura', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nivel }),
@@ -47,7 +47,7 @@ function Lectura() {
     setTraduciendo(true)
 
     try {
-      const respuesta = await fetch('http://127.0.0.1:5000/traducir-palabra', {
+      const respuesta = await fetch('`${URL_SERVIDOR}/traducir-palabra', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ palabra }),

@@ -43,7 +43,7 @@ function Conversacion() {
 
   async function reproducirVoz(texto) {
     try {
-      const respuesta = await fetch('http://127.0.0.1:5000/hablar', {
+      const respuesta = await fetch('`${URL_SERVIDOR}/hablar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ texto }),
@@ -66,7 +66,7 @@ function Conversacion() {
     setCargando(true)
 
     try {
-      const respuesta = await fetch('http://127.0.0.1:5000/conversar', {
+      const respuesta = await fetch('`${URL_SERVIDOR}/conversar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mensaje: texto }),
