@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from google import genai
 from supabase import create_client
 import json
+import re
 
 load_dotenv()  # carga las variables del archivo .env
 
@@ -141,7 +142,7 @@ Si no hay ningún error, deja tiene_error en false y los demás campos en null.
 """
 
     respuesta = cliente_gemini.models.generate_content(
-        model="gemini-flash-latest",
+        model="gemini-flash-lite-latest",
         contents=f"{instrucciones}\n\nMensaje del usuario: {mensaje_usuario}",
     )
 
@@ -314,7 +315,7 @@ Responde UNICAMENTE con un JSON valido, sin texto adicional, con esta estructura
 
     try:
         respuesta = cliente_gemini.models.generate_content(
-            model="gemini-flash-latest",
+            model="gemini-flash-lite-latest",
             contents=instrucciones,
         )
         texto_crudo = respuesta.text.strip()
@@ -328,6 +329,93 @@ Responde UNICAMENTE con un JSON valido, sin texto adicional, con esta estructura
     except Exception as e:
         print(f"Error generando pregunta: {e}")
         return None        
+
+@app.route("/generar-lectura", methods=["POST"])
+def generar_lectura():
+    datos = request.get_json()
+    nivel = datos.get("nivel", "A1")
+
+    instrucciones = f"""
+Escribe un texto corto en inglés (60-100 palabras) para un estudiante de nivel
+{nivel} del Marco Común Europeo (MCERL). Debe ser interesante, con vocabulario
+y gramática apropiados para ese nivel exacto (ni más fácil ni más difícil).
+Puede ser una mini-historia, un dato curioso, o una anécdota breve.
+
+Responde UNICAMENTE con un JSON valido, sin texto adicional, con esta estructura:
+{{
+  "titulo": "un titulo corto en ingles",
+  "contenido": "el texto completo en ingles"
+}}
+"""
+
+    try:
+        respuesta = cliente_gemini.models.generate_content(
+            model="gemini-flash-lite-latest",
+            contents=instrucciones,
+        )
+        texto_crudo = respuesta.text.strip()
+        if texto_crudo.startswith("```"):
+            texto_crudo = texto_crudo.split("```")[1]
+            if texto_crudo.startswith("json"):
+                texto_crudo = texto_crudo[4:]
+            texto_crudo = texto_crudo.strip()
+
+        datos_lectura = json.loads(texto_crudo)
+
+        resultado = (
+            cliente_supabase.table("lecturas")
+            .insert(
+                {
+                    "titulo": datos_lectura["titulo"],
+                    "contenido": datos_lectura["contenido"],
+                    "nivel": nivel,
+                }
+            )
+            .execute()
+        )
+
+        return {"lectura": resultado.data[0]}
+    except Exception as e:
+        print(f"Error generando lectura: {e}")
+        return {"error": str(e)}, 500
+
+
+@app.route("/traducir-palabra", methods=["POST"])
+def traducir_palabra():
+    datos = request.get_json()
+    palabra = datos.get("palabra", "")
+
+    if not palabra:
+        return {"error": "Falta la palabra"}, 400
+
+    instrucciones = f"""
+Traduce esta palabra en inglés al español: "{palabra}"
+Considera el contexto más común de la palabra.
+
+Responde UNICAMENTE con un JSON valido, sin texto adicional, con esta estructura:
+{{
+  "palabra_en": "la palabra en ingles tal cual, en minusculas",
+  "palabra_es": "la traduccion al español",
+  "pronunciacion": "como suena en letras faciles de leer en español, ej 'pipol'"
+}}
+"""
+
+    try:
+        respuesta = cliente_gemini.models.generate_content(
+            model="gemini-flash-lite-latest",
+            contents=instrucciones,
+        )
+        texto_crudo = respuesta.text.strip()
+        coincidencia = re.search(r'\{.*\}', texto_crudo, re.DOTALL)
+        if coincidencia:
+            texto_crudo = coincidencia.group(0)
+
+        return json.loads(texto_crudo)
+
+        return json.loads(texto_crudo)
+    except Exception as e:
+        print(f"Error traduciendo palabra: {e}")
+        return {"error": str(e)}, 500
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)

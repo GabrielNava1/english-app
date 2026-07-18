@@ -7,6 +7,7 @@ function Navbar() {
     { to: '/conversacion', label: 'Conversación' },
     { to: '/pronunciacion', label: 'Pronunciación' },
     { to: '/progreso', label: 'Progreso' },
+    { to: '/lectura', label: 'Lectura' },
   ]
 
   return (

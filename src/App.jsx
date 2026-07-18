@@ -5,6 +5,7 @@ import Gramatica from './pages/Gramatica'
 import Conversacion from './pages/Conversacion'
 import Pronunciacion from './pages/Pronunciacion'
 import Progreso from './pages/Progreso'
+import Lectura from './pages/Lectura'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <Route path="/conversacion" element={<Conversacion />} />
           <Route path="/pronunciacion" element={<Pronunciacion />} />
           <Route path="/progreso" element={<Progreso />} />
+          <Route path="/lectura" element={<Lectura />} />
         </Routes>
       </div>
     </BrowserRouter>
