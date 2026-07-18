@@ -159,10 +159,32 @@ Si no hay ningún error, deja tiene_error en false y los demás campos en null.
         return {"respuesta": respuesta.text, "tiene_error": False}
 
     # si detectamos un error, lo guardamos y reforzamos vocabulario
-    if datos_ia.get("tiene_error"):
+    tiene_error = datos_ia.get("tiene_error", False)
+    if tiene_error:
         guardar_error_y_reforzar(datos_ia)
 
+    actualizar_stats_conversacion(tiene_error)
+
     return {"respuesta": datos_ia.get("respuesta", "")}
+
+
+def actualizar_stats_conversacion(tiene_error):
+    try:
+        actual = (
+            cliente_supabase.table("conversacion_stats")
+            .select("*")
+            .eq("id", 1)
+            .execute()
+        )
+        if actual.data:
+            fila = actual.data[0]
+            nuevos_datos = {
+                "mensajes_totales": fila["mensajes_totales"] + 1,
+                "mensajes_con_error": fila["mensajes_con_error"] + (1 if tiene_error else 0),
+            }
+            cliente_supabase.table("conversacion_stats").update(nuevos_datos).eq("id", 1).execute()
+    except Exception as e:
+        print(f"Error actualizando stats de conversacion: {e}")
 
 
 def guardar_error_y_reforzar(datos_ia):
