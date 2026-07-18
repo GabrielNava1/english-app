@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
+import { URL_SERVIDOR } from '../config'
 
 const MAX_POR_SESION = 10 // no saturar, tanda manejable
 
@@ -86,7 +87,7 @@ function Vocabulario() {
 
   async function escuchar(palabraIngles) {
     try {
-      const respuesta = await fetch('`${URL_SERVIDOR}/pronunciar', {
+      const respuesta = await fetch(`${URL_SERVIDOR}/pronunciar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ palabra: palabraIngles }),

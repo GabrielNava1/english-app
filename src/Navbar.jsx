@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
+import { URL_SERVIDOR } from './config'
 
 function Navbar() {
   const [uso, setUso] = useState(null)
@@ -20,8 +21,9 @@ function Navbar() {
   }, [])
 
   async function cargarUso() {
+    console.log('URL_SERVIDOR es:', URL_SERVIDOR)
     try {
-      const respuesta = await fetch('http://127.0.0.1:5000/uso-api')
+      const respuesta = await fetch(`${URL_SERVIDOR}/uso-api`)
       const datos = await respuesta.json()
       setUso(datos)
     } catch (error) {

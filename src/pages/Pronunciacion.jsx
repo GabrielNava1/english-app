@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
+import { URL_SERVIDOR } from '../config'
 
 const MAX_POR_SESION = 10
 
@@ -81,7 +82,7 @@ function Pronunciacion() {
     setGenerandoRepaso(true)
     setMensajeRepaso('')
     try {
-      const respuesta = await fetch('`${URL_SERVIDOR}/generar-repaso', {
+      const respuesta = await fetch(`${URL_SERVIDOR}/generar-repaso`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tema: 'pronunciacion' }),
@@ -113,7 +114,7 @@ function Pronunciacion() {
   async function escucharActual() {
     const p = cola[indice]
     try {
-      const respuesta = await fetch('`${URL_SERVIDOR}/pronunciar', {
+      const respuesta = await fetch(`${URL_SERVIDOR}/pronunciar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ palabra: p.palabra_en }),

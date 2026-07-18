@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { URL_SERVIDOR } from '../config'
 
 function Conversacion() {
   const [modo, setModo] = useState('texto') // 'texto' | 'voz'
@@ -43,7 +44,7 @@ function Conversacion() {
 
   async function reproducirVoz(texto) {
     try {
-      const respuesta = await fetch('`${URL_SERVIDOR}/hablar', {
+      const respuesta = await fetch(`${URL_SERVIDOR}/hablar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ texto }),
@@ -66,7 +67,7 @@ function Conversacion() {
     setCargando(true)
 
     try {
-      const respuesta = await fetch('`${URL_SERVIDOR}/conversar', {
+      const respuesta = await fetch(`${URL_SERVIDOR}/conversar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mensaje: texto }),
