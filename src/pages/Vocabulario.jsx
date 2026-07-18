@@ -37,6 +37,28 @@ function Vocabulario() {
     }
   }
 
+  async function escucharPronunciacion(palabraIngles) {
+    try {
+      const respuesta = await fetch('http://127.0.0.1:5000/pronunciar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ palabra: palabraIngles }),
+      })
+
+      if (!respuesta.ok) {
+        console.error('Error al generar audio')
+        return
+      }
+
+      const audioBlob = await respuesta.blob()
+      const audioUrl = URL.createObjectURL(audioBlob)
+      const audio = new Audio(audioUrl)
+      audio.play()
+    } catch (error) {
+      console.error('Error conectando con el servidor de Python:', error)
+    }
+  }
+
   if (cargando) {
     return <div className="p-6 text-gray-400">Cargando palabras...</div>
   }
@@ -58,6 +80,13 @@ function Vocabulario() {
             <p className="text-gray-400 text-sm">{p.palabra_es}</p>
             <p className="text-2xl font-black text-gray-100">{p.palabra_en}</p>
             <p className="text-cyan-400 text-sm mt-1">/{p.pronunciacion}/</p>
+
+            <button
+              onClick={() => escucharPronunciacion(p.palabra_en)}
+              className="mt-3 w-full text-xs font-bold py-2 rounded-lg bg-gray-800 text-cyan-400 hover:bg-gray-700 transition-colors"
+            >
+              🔊 Escuchar
+            </button>
 
             <button
               onClick={() => marcarAprendida(p.id, p.aprendida)}
