@@ -7,9 +7,15 @@ from flask_cors import CORS
 import edge_tts
 import asyncio
 import os
+from dotenv import load_dotenv
+from google import genai
+
+load_dotenv()  # carga las variables del archivo .env
 
 app = Flask(__name__)
 CORS(app)  # permite que React (otro puerto) le hable a este servidor
+
+cliente_gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # Carpeta donde vamos a guardar los audios generados
 CARPETA_AUDIOS = "audios"
@@ -43,9 +49,29 @@ def pronunciar():
     return send_file(ruta, mimetype="audio/mpeg")
 
 
-@app.route("/")
-def inicio():
-    return {"mensaje": "Servidor de pronunciación funcionando 🎧"}
+@app.route("/conversar", methods=["POST"])
+def conversar():
+    datos = request.get_json()
+    mensaje_usuario = datos.get("mensaje", "")
+
+    if not mensaje_usuario:
+        return {"error": "Falta el mensaje"}, 400
+
+    instrucciones = (
+        "Eres un profesor de inglés paciente y amigable. "
+        "El usuario está practicando inglés y puede escribir en español o inglés. "
+        "Responde SIEMPRE en inglés simple (nivel principiante-intermedio), "
+        "y si el usuario cometió un error gramatical, corrígelo amablemente "
+        "al final de tu respuesta, en español, con el formato: "
+        "'Corrección: ...'. Si no hay errores, no agregues nada de corrección."
+    )
+
+    respuesta = cliente_gemini.models.generate_content(
+        model="gemini-flash-latest",
+        contents=f"{instrucciones}\n\nMensaje del usuario: {mensaje_usuario}",
+    )
+
+    return {"respuesta": respuesta.text}
 
 
 if __name__ == "__main__":
