@@ -65,6 +65,11 @@ function Progreso() {
       pronunciacion: puntajePron,
       conversacion: puntajeConv,
     })
+
+    const promedioCalculado = Math.round((puntajeVocab + puntajeGram + puntajePron + puntajeConv) / 4)
+    const nivelCalculado = calcularNivel(promedioCalculado)
+    await supabase.from('perfil_usuario').update({ nivel_actual: nivelCalculado.nivel }).eq('id', 1)
+
     setCargando(false)
   }
 

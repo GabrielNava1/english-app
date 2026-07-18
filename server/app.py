@@ -19,6 +19,31 @@ app = Flask(__name__)
 CORS(app)  # permite que React (otro puerto) le hable a este servidor
 
 cliente_gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+LIMITE_DIARIO_ESTIMADO = 1000  # aproximado para gemini-flash-lite-latest, puede variar
+
+def llamar_gemini(prompt):
+    """Llama a Gemini y lleva registro de cuantas llamadas se hacen hoy."""
+    respuesta = cliente_gemini.models.generate_content(
+        model="gemini-flash-lite-latest",
+        contents=prompt,
+    )
+    registrar_uso()
+    return respuesta
+
+
+def registrar_uso():
+    try:
+        hoy = str(__import__("datetime").date.today())
+        existente = cliente_supabase.table("uso_api").select("*").eq("fecha", hoy).execute()
+        if existente.data:
+            nuevas = existente.data[0]["llamadas"] + 1
+            cliente_supabase.table("uso_api").update({"llamadas": nuevas}).eq("fecha", hoy).execute()
+        else:
+            cliente_supabase.table("uso_api").insert({"fecha": hoy, "llamadas": 1}).execute()
+    except Exception as e:
+        print(f"Error registrando uso: {e}")
+
 cliente_supabase = create_client(
     os.getenv("SUPABASE_URL"),
     os.getenv("SUPABASE_KEY")
@@ -141,10 +166,7 @@ marcado de código, con esta estructura exacta:
 Si no hay ningún error, deja tiene_error en false y los demás campos en null.
 """
 
-    respuesta = cliente_gemini.models.generate_content(
-        model="gemini-flash-lite-latest",
-        contents=f"{instrucciones}\n\nMensaje del usuario: {mensaje_usuario}",
-    )
+    respuesta = llamar_gemini(f"{instrucciones}\n\nMensaje del usuario: {mensaje_usuario}")
 
     texto_crudo = respuesta.text.strip()
     # a veces Gemini envuelve el JSON en ```json ... ``` — lo limpiamos
@@ -314,10 +336,7 @@ Responde UNICAMENTE con un JSON valido, sin texto adicional, con esta estructura
 """
 
     try:
-        respuesta = cliente_gemini.models.generate_content(
-            model="gemini-flash-lite-latest",
-            contents=instrucciones,
-        )
+        respuesta = llamar_gemini(instrucciones)
         texto_crudo = respuesta.text.strip()
         if texto_crudo.startswith("```"):
             texto_crudo = texto_crudo.split("```")[1]
@@ -349,10 +368,7 @@ Responde UNICAMENTE con un JSON valido, sin texto adicional, con esta estructura
 """
 
     try:
-        respuesta = cliente_gemini.models.generate_content(
-            model="gemini-flash-lite-latest",
-            contents=instrucciones,
-        )
+        respuesta = llamar_gemini(instrucciones)
         texto_crudo = respuesta.text.strip()
         if texto_crudo.startswith("```"):
             texto_crudo = texto_crudo.split("```")[1]
@@ -380,42 +396,19 @@ Responde UNICAMENTE con un JSON valido, sin texto adicional, con esta estructura
         return {"error": str(e)}, 500
 
 
-@app.route("/traducir-palabra", methods=["POST"])
-def traducir_palabra():
-    datos = request.get_json()
-    palabra = datos.get("palabra", "")
+@app.route("/uso-api", methods=["GET"])
+def uso_api():
+    from datetime import date
+    hoy = str(date.today())
+    resultado = cliente_supabase.table("uso_api").select("*").eq("fecha", hoy).execute()
+    llamadas_hoy = resultado.data[0]["llamadas"] if resultado.data else 0
 
-    if not palabra:
-        return {"error": "Falta la palabra"}, 400
+    return {
+        "llamadas_hoy": llamadas_hoy,
+        "limite_estimado": LIMITE_DIARIO_ESTIMADO,
+        "porcentaje": round((llamadas_hoy / LIMITE_DIARIO_ESTIMADO) * 100),
+    }
 
-    instrucciones = f"""
-Traduce esta palabra en inglés al español: "{palabra}"
-Considera el contexto más común de la palabra.
-
-Responde UNICAMENTE con un JSON valido, sin texto adicional, con esta estructura:
-{{
-  "palabra_en": "la palabra en ingles tal cual, en minusculas",
-  "palabra_es": "la traduccion al español",
-  "pronunciacion": "como suena en letras faciles de leer en español, ej 'pipol'"
-}}
-"""
-
-    try:
-        respuesta = cliente_gemini.models.generate_content(
-            model="gemini-flash-lite-latest",
-            contents=instrucciones,
-        )
-        texto_crudo = respuesta.text.strip()
-        coincidencia = re.search(r'\{.*\}', texto_crudo, re.DOTALL)
-        if coincidencia:
-            texto_crudo = coincidencia.group(0)
-
-        return json.loads(texto_crudo)
-
-        return json.loads(texto_crudo)
-    except Exception as e:
-        print(f"Error traduciendo palabra: {e}")
-        return {"error": str(e)}, 500
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
